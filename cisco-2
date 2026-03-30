@@ -1,0 +1,113 @@
+ご要望に合わせて、各機器の物理接続から詳細なコマンド設定、接続確認までを省略せずに解説します。
+全体構成の想定
+
+* 管理用ネットワーク: VLAN 1900（192.168.4.0/23）
+* 機器2 (2960S): コア/ディストリビューション側。APと機器3を収容。
+* 機器3 (2960-CX): 機器2の配下。PC接続用。
+* 機器4 (CW9172I): Merakiモードで動作。
+
+------------------------------
+1. 機器3：Cisco Catalyst 2960-CX の設定
+PCからのTelnetを受け付け、上位スイッチと通信するための詳細設定です。
+
+# 特権モードへ移行
+enable# 設定モードへ移行
+configure terminal
+# ホスト名の設定
+hostname B8-Test-SW
+# 使用するVLANの作成
+vlan 809
+ name Client_VLAN_809
+vlan 1811
+ name Client_VLAN_1811
+vlan 1900
+ name Management_VLAN
+exit
+# 管理用インターフェースの設定（IPアドレス付与）
+interface vlan 1900
+ description Management_Interface
+ ip address 192.168.5.247 255.255.254.0
+ no shutdown
+exit
+# デフォルトゲートウェイの設定（別ネットワークからTelnetする場合に必要）# ip default-gateway 192.168.4.1
+# 上位（機器2）へのトランクポート設定 (例: Gi0/1)
+interface GigabitEthernet0/1
+ description Link_to_2960S
+ switchport trunk encapsulation dot1q (※機種により不要な場合あり)
+ switchport mode trunk
+ switchport trunk native vlan 1900
+ switchport trunk allowed vlan 809,1811,1900
+ no shutdown
+exit
+# Telnet接続許可の設定
+line vty 0 4
+ password cisco (※任意のパスワード)
+ login
+ transport input telnet
+exit
+# 設定の保存
+end
+write memory
+
+------------------------------
+2. 機器2：Cisco Catalyst 2960S-48FPS-L の設定
+機器3およびAP(機器4)を接続するためのトランク設定です。
+
+enable
+configure terminal
+# VLANの作成
+vlan 809,1612,1811,1900
+exit
+# 機器3(2960-CX)への接続ポート (例: Gi1/0/1)
+interface GigabitEthernet1/0/1
+ description Link_to_2960-CX
+ switchport mode trunk
+ switchport trunk native vlan 1900
+ switchport trunk allowed vlan 809,1811,1900,1612
+ no shutdown
+exit
+# AP(CW9172I)への接続ポート (例: Gi1/0/2)
+interface GigabitEthernet1/0/2
+ description Link_to_Meraki_AP
+ switchport mode trunk
+ switchport trunk native vlan 1900
+ switchport trunk allowed vlan 809,1612,1811,1900
+ spanning-tree portfast trunk
+ power inline auto
+ no shutdown
+exit
+
+end
+write memory
+
+------------------------------
+3. 機器4：WIFI アクセスポイント (CW9172I) のセットアップ
+Merakiクラウドへの登録と管理手順です。
+
+   1. 物理接続: 機器2のPoEポート（Gi1/0/2）にLANケーブルで接続します。
+   2. Meraki Dashboard登録:
+   * ブラウザで Meraki Dashboard にログイン。
+      * 「ネットワーク全体」>「設定」>「デバイスの追加」へ進む。
+      * AP本体裏面にあるシリアル番号を入力して登録。
+   3. SSIDの設定:
+   * 「ワイヤレス」>「設定」>「SSID」で新しいSSIDを作成。
+      * 「ワイヤレス」>「設定」>「アクセス制御」で、VLAN taggingを「Use VLAN tagging」に設定し、適切なVLAN（例: 809）を指定。
+   4. ステータス確認:
+   * 「ワイヤレス」>「監視」>「アクセスポイント」で、対象APのステータスが緑（オンライン）になるまで待ちます。
+   
+------------------------------
+4. 機器1：PCの設定と接続確認
+PCから他機器へのアクセス手順です。
+
+   1. 機器3へのTelnet接続確認:
+   * PCを機器3の空きポート（例: Gi0/2）に接続。
+      * そのポートをVLAN 1900に割り当てるか、PCに 192.168.4.x /23 の固定IPを設定。
+      * コマンドプロンプトで telnet 192.168.5.247 を実行し、パスワードを入力してログインできるか確認。
+   2. Wi-Fi経由で機器2へ接続:
+   * PCのWi-FiをONにし、Merakiで設定したSSIDを選択。
+      * 接続後、PCが適切なVLANのIPを取得しているか ipconfig で確認。
+      * 機器2の管理IP（設定している場合）へPingが通るか確認。
+   
+------------------------------
+運用上の注意点として、PCから機器3へTelnetする際、PCが所属するVLANが管理用VLAN(1900)以外の場合は、上位スイッチ(機器2)等でVLAN間ルーティングの設定が必要になります。現在のネットワーク内にルーターやL3スイッチは存在しますか？
+
