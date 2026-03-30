@@ -1,0 +1,157 @@
+了解です。では、あなたの要求をすべて満たすために、**Cisco 2960S／2960-CX／CW9172I／PC の詳細な設定手順を、実際に投入できる完全コンフィグ形式でまとめて提示**します。  
+ネットワーク構成がそのまま再現できるレベルで書きます。
+
+---
+
+# 🧩 **全体構成（前提）**
+- **PC（WiFi） → AP（CW9172I） → Cisco 2960S（2） → Cisco 2960-CX（3）**
+- PC は VLAN1900（native VLAN）に所属  
+- 2960-CX（3）は管理 IP：**192.168.5.247/23**  
+- 2960S（2）と 2960-CX（3）は trunk 接続  
+- AP は trunk で接続し、Meraki ダッシュボードへ到達可能にする  
+
+---
+
+# ① **Cisco 2960-CX（3）詳細設定（要求①）**
+**hostname: B8-Test-SW**  
+**IP: 192.168.5.247/23**  
+**trunk VLAN: 809,1811,1900（native 1900）**
+
+---
+
+## 🔧 **2960-CX（3）完全コンフィグ例**
+```
+!
+hostname B8-Test-SW
+!
+no ip domain-lookup
+!
+vlan 809
+vlan 1811
+vlan 1900
+!
+interface Vlan1900
+ ip address 192.168.5.247 255.255.254.0
+ no shutdown
+!
+ip default-gateway 192.168.4.1
+!
+! trunk ポート（例：Gi1/0/1 を 2960S へ接続）
+interface GigabitEthernet1/0/1
+ switchport mode trunk
+ switchport trunk allowed vlan 809,1811,1900
+ switchport trunk native vlan 1900
+ spanning-tree portfast trunk
+!
+! Telnet 設定
+line vty 0 4
+ password cisco
+ login
+ transport input telnet
+!
+end
+```
+
+---
+
+# ② **Cisco 2960S（2）詳細設定（要求②）**
+**trunk VLAN: 809,1811,1900,1612**
+
+---
+
+## 🔧 **2960S（2）完全コンフィグ例**
+```
+!
+hostname Core-2960S
+!
+no ip domain-lookup
+!
+vlan 809
+vlan 1811
+vlan 1900
+vlan 1612
+!
+! 2960-CX（3）へ接続する trunk（例：Gi1/0/24）
+interface GigabitEthernet1/0/24
+ switchport mode trunk
+ switchport trunk allowed vlan 809,1811,1900,1612
+ switchport trunk native vlan 1900
+ spanning-tree portfast trunk
+!
+! AP（CW9172I）接続ポート（例：Gi1/0/10）
+interface GigabitEthernet1/0/10
+ switchport mode trunk
+ switchport trunk allowed vlan 809,1811,1900,1612
+ switchport trunk native vlan 1900
+ spanning-tree portfast trunk
+!
+end
+```
+
+---
+
+# ③ **PC（1）設定（要求③ & ⑤）**
+PC は **WiFi で VLAN1900 に接続**する。
+
+## PC の IP 設定例
+| 項目 | 値 |
+|------|------|
+| IP | 192.168.5.10 |
+| Subnet | 255.255.254.0 (/23) |
+| Gateway | 192.168.4.1 |
+| DNS | 任意（8.8.8.8 など） |
+
+## Telnet テスト
+```
+telnet 192.168.5.247
+```
+
+---
+
+# ④ **CW9172I（4）設定（要求④）**
+CW9172I は Meraki ダッシュボードに自動登録されるため、**uplink がインターネットへ到達できる VLAN（例：1900）** を trunk で流す。
+
+---
+
+## 🔧 **AP 接続ポート（2960S 側）**
+（すでに上で設定済み）
+
+```
+interface GigabitEthernet1/0/10
+ switchport mode trunk
+ switchport trunk allowed vlan 809,1811,1900,1612
+ switchport trunk native vlan 1900
+ spanning-tree portfast trunk
+```
+
+## AP 側（CW9172I）
+- DHCP で IP を取得  
+- インターネットへ到達  
+- Meraki ダッシュボードで “Online” になる  
+
+---
+
+# ⑤ **最終接続確認フロー**
+### ✔ PC → 2960-CX（3）へ ping
+```
+ping 192.168.5.247
+```
+
+### ✔ PC → Telnet
+```
+telnet 192.168.5.247
+```
+
+### ✔ AP → Meraki ダッシュボード  
+- Online  
+- IP アドレス取得済み  
+
+---
+
+# 📘 必要であれば作成できます
+- **L2/L3 ネットワーク構成図（図面）**  
+- **各機器の running-config 完全版**  
+- **VLAN 設計書**  
+- **接続テスト手順書（PDF 風の文章）**
+
+どれを追加しますか。
