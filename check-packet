@@ -1,0 +1,283 @@
+可以。很多公司因为安全、权限、数据泄漏等原因，不允许安装 Wireshark，但并不代表不能做网络分析。
+可以根据你的权限和目标，换成下面这些方案。
+
+⸻
+
+1. tcpdump（最常见替代）
+
+如果是 Linux / RHEL / Cisco 环境，tcpdump 基本是标准方案。
+
+优点：
+
+* 通常系统自带
+* CLI 下运行
+* 不需要 GUI
+* 很适合服务器环境
+* 可生成 .pcap 给别的机器分析
+
+例：
+
+sudo tcpdump -i eth0
+
+抓 SSH：
+
+sudo tcpdump -i eth0 port 22
+
+保存：
+
+sudo tcpdump -i eth0 -w capture.pcap
+
+然后：
+
+* 拿到允许分析的PC
+* 用 Wireshark 打开 pcap
+* 或 tshark 分析
+
+⸻
+
+2. tshark（Wireshark 的 CLI 版）
+
+很多公司禁止 GUI Wireshark，但允许 tshark。
+
+实际上：
+
+* tshark = Wireshark 的命令行解析器
+
+例：
+
+tshark -i eth0
+
+过滤：
+
+tshark -i eth0 -f "tcp port 443"
+
+统计：
+
+tshark -r test.pcap -q -z io,stat,1
+
+优势：
+
+* 无 GUI
+* 审计风险较低
+* 很适合 SSH 服务器
+
+⸻
+
+3. Cisco 自带抓包（很实用）
+
+Cisco IOS/XE/NXOS 很多都支持 Embedded Packet Capture (EPC)。
+
+例如：
+
+monitor capture CAP interface gi1/0/1 both
+monitor capture CAP start
+
+停止：
+
+monitor capture CAP stop
+
+导出：
+
+monitor capture CAP export tftp://1.1.1.1/cap.pcap
+
+适合：
+
+* 不能在终端装工具
+* 只能在交换机侧调查
+
+⸻
+
+4. SPAN / Port Mirror
+
+企业里最正规的做法之一。
+
+交换机配置：
+
+monitor session 1 source interface gi1/0/1
+monitor session 1 destination interface gi1/0/24
+
+然后：
+
+* 24口接分析PC
+* 分析PC不一定装Wireshark
+* 可以跑 tcpdump
+
+适合：
+
+* 调查广播风暴
+* STP
+* ARP异常
+* VLAN问题
+
+⸻
+
+5. ss / netstat / ip 命令（轻量）
+
+如果只是想知道：
+
+* 谁连了谁
+* TCP状态
+* 端口是否监听
+
+其实不用抓包。
+
+Linux：
+
+ss -antp
+
+比 netstat 更现代。
+
+查看监听：
+
+ss -lnt
+
+⸻
+
+6. nethogs / iftop / iptraf-ng
+
+如果目的是：
+
+* 谁在占带宽
+* 哪个进程在通信
+
+这些工具比 Wireshark 更适合。
+
+例：
+
+sudo iftop
+
+实时看流量。
+
+⸻
+
+7. 日志分析（企业里很常见）
+
+很多公司：
+
+* 不允许抓包
+* 但允许看日志
+
+例如：
+
+Cisco
+
+show logging
+
+Linux
+
+journalctl -u NetworkManager
+
+nginx
+
+tail -f access.log
+
+⸻
+
+8. Zeek / Suricata（高级）
+
+企业SOC经常这样：
+
+* 不给工程师Wireshark
+* 给 IDS/NSM 平台
+
+例如：
+
+* Zeek
+* Suricata
+* Security Onion
+
+它们：
+
+* 自动分析协议
+* 自动记录会话
+* 不一定需要人工抓包
+
+⸻
+
+企业里为什么禁 Wireshark
+
+一般原因：
+
+1）混杂模式（Promiscuous Mode）
+
+会读取非本机流量。
+
+⸻
+
+2）可能泄漏敏感数据
+
+例如：
+
+* 密码
+* Cookie
+* Token
+* 内部API
+
+⸻
+
+3）普通用户容易误抓
+
+尤其金融/政府。
+
+⸻
+
+我建议你现在这样做（适合网络工程师）
+
+如果你主要做：
+
+* Cisco
+* Linux
+* 网络设计
+* 冗长化调查
+
+推荐组合：
+
+Linux侧
+
+* tcpdump
+* tshark
+* ss
+* iftop
+
+Cisco侧
+
+* monitor capture
+* SPAN
+* show interface
+* show platform
+
+⸻
+
+一个很实战的组合
+
+例如：
+
+“某业务偶发断线”
+
+你可以：
+
+Cisco
+
+show interface counters errors
+show spanning-tree
+show mac address-table
+
+Linux
+
+ss -ant
+tcpdump -i eth0 host x.x.x.x
+
+这样很多时候已经能定位问题，不一定需要 Wireshark GUI。
+
+⸻
+
+如果你愿意，我还可以继续给你：
+
+* ￼ 「不用 Wireshark 的企业级网络排障流程」
+* ￼ 「tcpdump 实战过滤表达式大全」
+* ￼ 「Cisco EPC 抓包完整教程」
+* ￼ 「Linux 网络调查工具图谱」
+* ￼ 「tshark 自动分析脚本」
+* ￼ 「网络工程师在受限企业环境中的调查方法」
+
+这些会非常贴近实际工作。
